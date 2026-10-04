@@ -67,6 +67,11 @@ _T = TypeVar("_T")
 _SENTINEL = enum.Enum("_SENTINEL", "sentinel")
 sentinel = _SENTINEL.sentinel
 
+
+class BaselineConflict(Exception):
+    """Raised when the original dictionary has changed since the session started."""
+
+
 _version = itertools.count(1)
 
 _FREE_THREADED = hasattr(sys, "_is_gil_enabled") and not sys._is_gil_enabled()
@@ -1081,6 +1086,10 @@ class MultiDict(_CSMixin, MutableMultiMapping[_V]):
 
     __copy__ = copy
 
+    def session(self) -> "MultiDictSession[_V]":
+        """Create an independent editing session for this dictionary."""
+        return MultiDictSession(self)
+
     @_locked_pair_always
     def extend(self, arg: MDArg[_V] = None, /, **kwargs: _V) -> None:
         """Extend current MultiDict with more values.
@@ -1295,6 +1304,13 @@ class MultiDict(_CSMixin, MutableMultiMapping[_V]):
                 return default
         else:
             return [e.value for e in removed]
+
+    @_locked_always
+    def setall(self, key: str, values: Iterable[_V]) -> None:
+        """Set all values for key, replacing existing ones."""
+        self.popall(key, None)
+        for value in values:
+            self.add(key, value)
 
     @_locked_always
     def popitem(self) -> tuple[str, _V]:
@@ -1583,3 +1599,125 @@ def getversion(md: MultiDict[object] | MultiDictProxy[object]) -> int:
     elif not isinstance(md, MultiDict):
         raise TypeError("Parameter should be multidict or proxy")
     return md._version
+
+
+class MultiDictSession(Generic[_V]):
+    """An independent editing session for a MultiDict.
+
+    Records add, setall, and popall operations without modifying the
+    original dictionary. On commit, checks that the original dictionary
+    has not changed since the session started, then applies the operations.
+    """
+
+    __slots__ = ("_md", "_baseline", "_ops", "_frozen_log", "_committed", "_abandoned")
+
+    def __init__(self, md: MultiDict[_V]) -> None:
+        self._md = md
+        self._baseline = md.copy()
+        self._ops: list[tuple[Any, ...]] = []
+        self._frozen_log: tuple[tuple[Any, ...], ...] | None = None
+        self._committed = False
+        self._abandoned = False
+
+    def _check_active(self) -> None:
+        if self._committed:
+            raise RuntimeError("Session already committed")
+        if self._abandoned:
+            raise RuntimeError("Session already abandoned")
+
+    def add(self, key: str, value: _V) -> None:
+        """Record an add operation."""
+        self._check_active()
+        self._ops.append(("add", key, value))
+
+    def setall(self, key: str, values: Iterable[_V]) -> None:
+        """Record a setall operation."""
+        self._check_active()
+        self._ops.append(("setall", key, tuple(values)))
+
+    def popall(self, key: str) -> None:
+        """Record a popall operation."""
+        self._check_active()
+        self._ops.append(("popall", key))
+
+    def _check_baseline(self) -> None:
+        current = [(e.key, e.value) for e in self._md._keys.iter_entries()]
+        baseline = [(e.key, e.value) for e in self._baseline._keys.iter_entries()]
+        if current != baseline:
+            raise BaselineConflict(
+                "Original dictionary has changed since session started"
+            )
+
+    def _matches(self, key: str, other: str) -> bool:
+        return self._md._identity(key) == self._md._identity(other)
+
+    def _apply_add(self, pairs: list[tuple[str, _V]], key: str, value: _V) -> None:
+        last_idx = -1
+        for i, (k, _v) in enumerate(pairs):
+            if self._matches(k, key):
+                last_idx = i
+        if last_idx >= 0:
+            pairs.insert(last_idx + 1, (key, value))
+        else:
+            pairs.append((key, value))
+
+    def _apply_setall(
+        self, pairs: list[tuple[str, _V]], key: str, values: tuple[_V, ...]
+    ) -> None:
+        values = list(values)
+        result: list[tuple[str, _V]] = []
+        value_idx = 0
+        last_matching_pos = -1
+        for k, v in pairs:
+            if self._matches(k, key):
+                last_matching_pos = len(result)
+                if value_idx < len(values):
+                    result.append((key, values[value_idx]))
+                    value_idx += 1
+            else:
+                result.append((k, v))
+        if value_idx < len(values):
+            insert_at = last_matching_pos + 1 if last_matching_pos >= 0 else len(result)
+            for i in range(value_idx, len(values)):
+                result.insert(insert_at + (i - value_idx), (key, values[i]))
+        pairs[:] = result
+
+    def _apply_popall(self, pairs: list[tuple[str, _V]], key: str) -> None:
+        pairs[:] = [(k, v) for k, v in pairs if not self._matches(k, key)]
+
+    def commit(self) -> None:
+        """Commit the session.
+
+        Raises BaselineConflict if the original dictionary has changed
+        since the session started.
+        """
+        self._check_active()
+        self._check_baseline()
+        pairs: list[tuple[str, _V]] = [
+            (e.key, e.value) for e in self._baseline._keys.iter_entries()
+        ]
+        for op in self._ops:
+            if op[0] == "add":
+                self._apply_add(pairs, op[1], op[2])
+            elif op[0] == "setall":
+                self._apply_setall(pairs, op[1], op[2])
+            elif op[0] == "popall":
+                self._apply_popall(pairs, op[1])
+        self._md.__init__(pairs)
+        self._frozen_log = tuple(self._ops)
+        self._ops.clear()
+        self._committed = True
+
+    def abandon(self) -> None:
+        """Abandon the session without applying changes."""
+        self._check_active()
+        self._frozen_log = tuple(self._ops)
+        self._ops.clear()
+        self._abandoned = True
+
+    @property
+    def log(self) -> tuple[tuple[Any, ...], ...]:
+        """Read-only log of recorded operations."""
+        if self._frozen_log is not None:
+            return self._frozen_log
+        return tuple(self._ops)

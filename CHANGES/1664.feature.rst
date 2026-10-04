@@ -1,0 +1,7 @@
+Added an independent editing session for ``MultiDict`` and
+``CIMultiDict``: ``session()`` records ``add``, ``setall`` and
+``popall`` operations without touching the original dictionary,
+checks the baseline on ``commit()`` and rejects the commit with
+``BaselineConflict`` if the dictionary changed in the meantime.
+The read-only log preserves the caller's original key spelling
+and is frozen after commit or abandon.

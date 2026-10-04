@@ -1,0 +1,7 @@
+Added ``MultiDictEditSession``, an independent edit session for mutable
+multidicts: it records ``add()``, ``setall()`` and ``popall()`` operations
+in an immutable log (keeping the caller's original key spelling), preserves
+the relative order of duplicate values, and applies everything in a single
+commit after re-verifying the full baseline -- any concurrent change,
+including duplicate-only or key-spelling changes, rejects the commit
+without modifying the multidict.

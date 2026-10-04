@@ -11,11 +11,23 @@ from typing import TYPE_CHECKING
 
 from ._abc import MultiMapping, MutableMultiMapping
 from ._compat import USE_EXTENSIONS
+from ._edit_session import (
+    EditSessionClosed,
+    EditSessionConflict,
+    EditSessionError,
+    LogEntry,
+    MultiDictEditSession,
+)
 
 __all__ = (
     "CIMultiDict",
     "CIMultiDictProxy",
+    "EditSessionClosed",
+    "EditSessionConflict",
+    "EditSessionError",
+    "LogEntry",
     "MultiDict",
+    "MultiDictEditSession",
     "MultiDictProxy",
     "MultiMapping",
     "MutableMultiMapping",

@@ -1,0 +1,8 @@
+Added a binary codec for string multidicts: ``multidict.dumps()``,
+``multidict.loads()`` and the incremental ``multidict.MultiDictDecoder``.
+The self-describing frame explicitly encodes the protocol version, the
+dictionary kind, the item count and the UTF-8 byte length of every key
+and value; duplicate keys keep their original order, ``CIMultiDict``
+keeps the original key spelling, oversized declared lengths are
+rejected immediately, and truncated streams never yield a partial
+dictionary.

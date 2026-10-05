@@ -10,18 +10,23 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ._abc import MultiMapping, MutableMultiMapping
+from ._codec import CodecError, MultiDictDecoder, dumps, loads
 from ._compat import USE_EXTENSIONS
 
 __all__ = (
     "CIMultiDict",
     "CIMultiDictProxy",
+    "CodecError",
     "MultiDict",
+    "MultiDictDecoder",
     "MultiDictProxy",
     "MultiMapping",
     "MutableMultiMapping",
+    "dumps",
     "get_include",
     "getversion",
     "istr",
+    "loads",
     "upstr",
 )
 

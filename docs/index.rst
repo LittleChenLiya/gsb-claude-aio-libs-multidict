@@ -115,6 +115,7 @@ Contents
 .. toctree::
 
    multidict
+   codec
    capi
    cyapi
    benchmark

@@ -11,10 +11,14 @@ from typing import TYPE_CHECKING
 
 from ._abc import MultiMapping, MutableMultiMapping
 from ._compat import USE_EXTENSIONS
+from ._merge_plan import MergePlan, MergeResult, MergeStrategy, merge_sources
 
 __all__ = (
     "CIMultiDict",
     "CIMultiDictProxy",
+    "MergePlan",
+    "MergeResult",
+    "MergeStrategy",
     "MultiDict",
     "MultiDictProxy",
     "MultiMapping",
@@ -22,6 +26,7 @@ __all__ = (
     "get_include",
     "getversion",
     "istr",
+    "merge_sources",
     "upstr",
 )
 

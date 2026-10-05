@@ -1,0 +1,10 @@
+Added an explicit multi-source merge plan API: ``multidict.MergePlan``,
+``multidict.MergeStrategy`` and ``multidict.merge_sources()``.  Every key
+can declare a ``replace``, ``append`` or stable ``dedup`` strategy, with a
+fixed default strategy for undeclared keys.  Key matching follows the real
+key rules of the first source container (case-insensitive for
+``CIMultiDict``), the first occurrence of a key fixes its output position,
+replacing never collapses a multi-value key into a single value,
+conflicting rules are rejected before merging, the result is a fresh
+container independent from the inputs, and ``MergeResult.sources`` reports
+the originating source index of every output item.

@@ -1,0 +1,11 @@
+Added an explicit multi-source merge plan, :class:`~multidict.MergePlan`.
+Each key can be merged with one of three strategies -- ``replace`` (keep
+only the last source's values), ``append`` (keep all values in order), or
+``dedup`` (like append but skip duplicates, preserving first-occurrence
+order) -- and undeclared keys use a fixed default strategy. For
+:class:`~multidict.CIMultiDict` sources, keys are matched by their real
+(case-folded) identity, and the first source's key occurrence position
+determines the output position. Rule conflicts (e.g. two case-insensitively
+equal keys with different strategies) are rejected before execution. The
+result is a fresh container independent of the input sources, and each
+output item reports the index of the source it came from.

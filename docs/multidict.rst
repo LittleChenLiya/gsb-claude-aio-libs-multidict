@@ -539,6 +539,119 @@ no cached hash, so every operation also hashes it afresh.
    identity for case-insensitive lookups.
 
 
+Merge Plan
+==========
+
+.. class:: MergePlan(sources, strategies=None, *, default=MergeStrategy.APPEND)
+
+   An explicit multi-source merge plan. It merges several
+   :class:`MultiDict` sources into a single result.
+
+   :param sources: The multidict sources to merge, in order.
+   :param strategies: A mapping of key to :class:`MergeStrategy` (or its
+      string value). Keys not listed here use *default*.
+   :param default: The strategy for keys not listed in *strategies*.
+      Defaults to :data:`MergeStrategy.APPEND`.
+
+   Each key can be merged with one of three strategies:
+
+   - :data:`MergeStrategy.REPLACE` -- keep only the values from the last
+     source that defines the key (earlier sources are discarded). A
+     multi-value is not split into a single value: if the new source has
+     several values for the key, all of them are kept.
+   - :data:`MergeStrategy.APPEND` -- keep all values from all sources, in
+     order.
+   - :data:`MergeStrategy.DEDUP` -- like :data:`MergeStrategy.APPEND`, but
+     skip duplicate values (the first occurrence wins, order is preserved).
+
+   When the sources are :class:`CIMultiDict` instances, keys are matched by
+   their *real* (case-folded) identity: ``"A"`` and ``"a"`` are the same
+   key. The position of the first occurrence of a real key across the
+   sources determines its position in the output.
+
+   Rule conflicts are rejected before execution: for :class:`CIMultiDict`
+   sources, two strategy keys that are case-insensitively equal but resolve
+   to different strategies raise :exc:`ValueError`.
+
+   The result is a fresh container, independent of the input sources, and
+   each output item reports the index of the source it came from.
+
+   .. method:: execute()
+
+      Execute the plan and return a :class:`MergeResult`.
+
+   Usage example::
+
+      >>> from multidict import MultiDict, MergePlan, MergeStrategy
+      >>> s1 = MultiDict([('a', 1), ('b', 2)])
+      >>> s2 = MultiDict([('a', 3), ('a', 4), ('b', 5)])
+      >>> plan = MergePlan(
+      ...     [s1, s2],
+      ...     strategies={'a': MergeStrategy.APPEND, 'b': MergeStrategy.REPLACE},
+      ... )
+      >>> result = plan.execute()
+      >>> list(result.md.items())
+      [('a', 1), ('a', 3), ('a', 4), ('b', 5)]
+      >>> result.sources
+      [0, 1, 1, 1]
+
+   .. versionadded:: 7.1
+
+.. class:: MergeStrategy
+
+   An :class:`~enum.Enum` of the three merge strategies.
+
+   .. data:: REPLACE
+
+      Keep only the values from the last source that has the key.
+
+   .. data:: APPEND
+
+      Keep all values from all sources, in order.
+
+   .. data:: DEDUP
+
+      Like :data:`APPEND`, but skip duplicate values (first occurrence wins).
+
+   String values (``"replace"``, ``"append"``, ``"dedup"``) are accepted
+   wherever a strategy is expected.
+
+.. class:: MergeResult
+
+   The result of executing a :class:`MergePlan`.
+
+   .. attribute:: md
+
+      The merged multidict. A fresh container, independent of the input
+      sources. For :class:`CIMultiDict` sources it is a
+      :class:`CIMultiDict`, otherwise a :class:`MultiDict`.
+
+   .. attribute:: sources
+
+      The source index for each output item, in :meth:`md.items()
+      <multidict.MultiDict.items>` order.
+
+   .. method:: items_with_sources()
+
+      Return ``(key, value, source_index)`` for each output item.
+
+.. class:: MergeItem
+
+   A single output item with the index of the source it came from.
+
+   .. attribute:: key
+
+      The output key (the first occurrence's spelling).
+
+   .. attribute:: value
+
+      The output value.
+
+   .. attribute:: source
+
+      The index of the source this item came from.
+
+
 Abstract Base Classes
 =====================
 
